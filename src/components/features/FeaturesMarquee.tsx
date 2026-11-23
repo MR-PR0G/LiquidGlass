@@ -30,44 +30,55 @@ const FEATURES = [
 ];
 
 export const FeaturesMarquee: React.FC = React.memo(() => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
     <section className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 my-4 sm:my-6 select-none">
       <div 
         className="relative w-full h-[88px] sm:h-[96px] rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 bg-[#030406] shadow-[0_12px_40px_rgba(0,0,0,0.7)] flex items-center cursor-default pointer-events-auto"
         style={{ isolation: 'isolate', contain: 'strict' }}
       >
-        <div 
-          className="absolute inset-0 w-full h-full opacity-65 pointer-events-auto"
-          style={{ transform: 'translate3d(0, 0, 0)', willChange: 'contents', isolation: 'isolate' }}
-        >
-          <TopographicFlow
-            animateEntrance={false}
-            scale={220}
-            density={4}
-            speed={1.4}
-            distortion={0.65}
-            lineWidth={1.2}
-            opacity={0.8}
-            dashLength={0}
-            dashGap={0}
-            seed={106}
-            gradientDiffusion={0}
-            paused={false}
-            hover={0.8}
-            hoverRadius={180}
-            hoverFollow={0.18}
-            hoverFade={0.75}
-            hoverEffect="rings"
-            backgroundColor="#030406"
-            backgroundImage="none"
-            gradientColors={[]}
-            grain={0}
-            lineColor="#71717a"
-            accentColor="#a1a1aa"
-            lineStyle="solid"
-            className="w-full h-full"
+        {!isMobile ? (
+          <div 
+            className="absolute inset-0 w-full h-full opacity-65 pointer-events-auto"
+            style={{ transform: 'translate3d(0, 0, 0)', willChange: 'contents', isolation: 'isolate' }}
+          >
+            <TopographicFlow
+              animateEntrance={false}
+              scale={220}
+              density={3}
+              speed={1.0}
+              distortion={0.5}
+              lineWidth={1.2}
+              opacity={0.7}
+              dashLength={0}
+              dashGap={0}
+              seed={106}
+              gradientDiffusion={0}
+              paused={false}
+              hover={0.5}
+              hoverRadius={140}
+              hoverFollow={0.12}
+              hoverFade={0.75}
+              hoverEffect="rings"
+              backgroundColor="#030406"
+              backgroundImage="none"
+              gradientColors={[]}
+              grain={0}
+              lineColor="#71717a"
+              accentColor="#a1a1aa"
+              lineStyle="solid"
+              className="w-full h-full"
+            />
+          </div>
+        ) : (
+          <div 
+            className="absolute inset-0 w-full h-full pointer-events-none opacity-40"
+            style={{
+              background: 'radial-gradient(ellipse at 30% 50%, rgba(34, 211, 238, 0.15), transparent 60%), radial-gradient(ellipse at 75% 50%, rgba(99, 102, 241, 0.12), transparent 60%)'
+            }}
           />
-        </div>
+        )}
 
         <div className="absolute inset-0 bg-black/35 pointer-events-none" />
 

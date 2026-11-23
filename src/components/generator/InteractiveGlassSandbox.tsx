@@ -6,6 +6,7 @@ import { createSolidEngine } from '../shape-physics/solid-engine';
 import { shapeDefaults } from '../shape-physics/shape-settings';
 import { LiquidGlassNavbar } from '../navbar';
 import { LiquidFusionContainer } from './LiquidFusion';
+import { DualLiquidFusionStage } from './DualLiquidFusionStage';
 import { 
   Sliders, 
   Gauge, 
@@ -1908,6 +1909,16 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
         {/* ================= ZONE B: LIQUID GLASS OBSERVATION STAGE ================= */}
         {/* Anchored neatly below with ample clearance so Controls never overlaps */}
         <div className="relative z-20 pb-4 sm:pb-8 px-4 flex items-center justify-center pointer-events-none">
+          {innerContentMode === 'fusion' ? (
+            <DualLiquidFusionStage
+              canvasRef={canvasRef}
+              config={config}
+              shadowTone={shadowTone}
+              isShadowInverted={isShadowInverted}
+              darkTintRgba={darkTintRgba}
+              borderColorRgba={borderColorRgba}
+            />
+          ) : (
           <div
             className="flex items-center justify-center relative pointer-events-auto h-[clamp(46px,min(var(--capsule-h),88px),88px)] sm:h-[var(--capsule-h)]"
             style={{
@@ -2241,41 +2252,9 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
                 </div>
               )}
 
-              {innerContentMode === 'fusion' && (
-                <div className="relative w-full h-full flex flex-col items-center justify-center p-3 select-none pointer-events-auto">
-                  <div className="w-full max-w-[480px] h-[58px]">
-                    <LiquidFusionContainer
-                      isFusing={isFusingDemo}
-                      radius={20}
-                      threshold={14}
-                      restingGap={12}
-                      rightWidth={110}
-                      duration={480}
-                      className="w-full h-full"
-                    >
-                      <div className="flex-1 h-full rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between px-4 text-xs font-mono text-zinc-300">
-                        <span className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                          Liquid Box A
-                        </span>
-                        <span className="text-[10px] text-zinc-500 font-sans">Capillary Meniscus</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setIsFusingDemo(!isFusingDemo); }}
-                        className="w-[110px] h-full rounded-2xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 flex items-center justify-center gap-1.5 text-xs font-mono text-cyan-200 transition-all font-semibold active:scale-95 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
-                      >
-                        <span>{isFusingDemo ? 'Separate ⤢' : 'Fuse ⤡'}</span>
-                      </button>
-                    </LiquidFusionContainer>
-                  </div>
-                  <span className="text-[10px] text-zinc-400 mt-2 font-mono">
-                    Touch or click Fuse / Separate to observe organic catenoid pinch-off
-                  </span>
-                </div>
-              )}
             </div>
           </div>
+          )}
         </div>
 
         {/* Sleek Minimalist Vertical Scroll Indicator (Hidden for Shape Physics which is non-scrolling) */}
