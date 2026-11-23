@@ -1,5 +1,6 @@
 export * from './LiquidGlass';
 export * from './LiquidGlassNavbar';
+export * from './LiquidFusion';
 export * from './refracted-text';
 export * from './soap-bubble-system';
 export * from './use-soap-bubble';

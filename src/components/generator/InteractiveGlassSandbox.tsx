@@ -5,6 +5,7 @@ import { generateNodeReactCode, generateSeparatedExportCode } from '../../utils/
 import { createSolidEngine } from '../shape-physics/solid-engine';
 import { shapeDefaults } from '../shape-physics/shape-settings';
 import { LiquidGlassNavbar } from '../navbar';
+import { LiquidFusionContainer } from './LiquidFusion';
 import { 
   Sliders, 
   Gauge, 
@@ -69,12 +70,13 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
 
   // Custom Image Upload and Inner Content States
-  const urlMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mode') as ('text' | 'nav' | 'player') : null;
+  const urlMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('mode') as ('text' | 'nav' | 'player' | 'fusion') : null;
   const isShowcase = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('showcase') === 'true';
   const isClean = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('clean') === 'true';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const customImageElementRef = useRef<HTMLImageElement | null>(null);
-  const [innerContentMode, setInnerContentMode] = useState<'text' | 'nav' | 'player'>(urlMode || 'nav');
+  const [innerContentMode, setInnerContentMode] = useState<'text' | 'nav' | 'player' | 'fusion'>(urlMode || 'nav');
+  const [isFusingDemo, setIsFusingDemo] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(true);
   const [shadowTone, setShadowTone] = useState<ShadowTone>('dark');
   const [isShadowInverted, setIsShadowInverted] = useState(false);
@@ -758,7 +760,7 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
     setTimeout(() => setCopiedAction(null), 2500);
   };
 
-  const renderCapsuleBody = (mode: 'text' | 'nav' | 'player', activeTab = 1, isPlaying = true) => {
+  const renderCapsuleBody = (mode: 'text' | 'nav' | 'player' | 'fusion', activeTab = 1, isPlaying = true) => {
     const isNav = mode === 'nav';
     const isPlayer = mode === 'player';
     const capH = isNav ? 84 : isPlayer ? 80 : 76;
@@ -1522,7 +1524,7 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
                         Content
                       </span>
                       <span className="text-cyan-400 font-bold capitalize tracking-wider shrink-0 text-[10px]">
-                        {innerContentMode === 'nav' ? 'Navbar' : innerContentMode === 'player' ? 'Player' : 'Text'}
+                        {innerContentMode === 'nav' ? 'Navbar' : innerContentMode === 'player' ? 'Player' : innerContentMode === 'fusion' ? 'Fusion' : 'Text'}
                       </span>
                     </div>
                     <div className="h-5 sm:h-5.5 w-full flex items-center p-0.5 rounded-lg bg-black/50 border border-white/10 gap-0.5">
@@ -1530,6 +1532,7 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
                         { id: 'text', label: 'Text' },
                         { id: 'nav', label: 'Nav' },
                         { id: 'player', label: 'Play' },
+                        { id: 'fusion', label: 'Fusion' },
                       ].map((m) => (
                         <button
                           key={m.id}
@@ -2235,6 +2238,40 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
                       <SkipForward size={16} />
                     </button>
                   </div>
+                </div>
+              )}
+
+              {innerContentMode === 'fusion' && (
+                <div className="relative w-full h-full flex flex-col items-center justify-center p-3 select-none pointer-events-auto">
+                  <div className="w-full max-w-[480px] h-[58px]">
+                    <LiquidFusionContainer
+                      isFusing={isFusingDemo}
+                      radius={20}
+                      threshold={14}
+                      restingGap={12}
+                      rightWidth={110}
+                      duration={480}
+                      className="w-full h-full"
+                    >
+                      <div className="flex-1 h-full rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between px-4 text-xs font-mono text-zinc-300">
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                          Liquid Box A
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-sans">Capillary Meniscus</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setIsFusingDemo(!isFusingDemo); }}
+                        className="w-[110px] h-full rounded-2xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 flex items-center justify-center gap-1.5 text-xs font-mono text-cyan-200 transition-all font-semibold active:scale-95 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                      >
+                        <span>{isFusingDemo ? 'Separate ⤢' : 'Fuse ⤡'}</span>
+                      </button>
+                    </LiquidFusionContainer>
+                  </div>
+                  <span className="text-[10px] text-zinc-400 mt-2 font-mono">
+                    Touch or click Fuse / Separate to observe organic catenoid pinch-off
+                  </span>
                 </div>
               )}
             </div>

@@ -15,7 +15,7 @@ export interface SeparatedExportCode {
 export function generateSeparatedExportCode(
   config: LiquidGlassConfig,
   shadowTone: ShadowTone = 'dark',
-  innerContentMode: 'text' | 'nav' | 'player' = 'nav',
+  innerContentMode: 'text' | 'nav' | 'player' | 'fusion' = 'nav',
   isShadowInverted: boolean = false
 ): SeparatedExportCode {
   const darkTintVal = (config.darkTint ?? 0.15).toFixed(3);
@@ -98,6 +98,17 @@ export function generateSeparatedExportCode(
         <div class="liquid-lens-specular"></div>
       </div>
     </nav>`;
+  } else if (innerContentMode === 'fusion') {
+    innerHtml = `    <!-- Liquid Glass Organic Fusion Bridge (Young-Laplace Capillary Meniscus) -->
+    <div class="liquid-glass-fusion" id="liquid-fusion-wrapper">
+      <div class="fusion-card fusion-card-left">
+        <span class="fusion-dot"></span>
+        <span class="fusion-title">Liquid Module A</span>
+      </div>
+      <button class="fusion-card fusion-card-btn" id="fusion-toggle-btn" aria-label="Toggle Fusion">
+        <span id="fusion-status-text">Fuse ⤡</span>
+      </button>
+    </div>`;
   } else if (innerContentMode === 'player') {
     innerHtml = `    <!-- Liquid Glass Luxury Cupertino Audio Player -->
     <div class="liquid-glass-player">
@@ -370,6 +381,74 @@ ${isShadowInverted ? `
   z-index: 40;
 }
 
+
+/* ------------------------------------------------------------- */
+/* Organic Capillary Liquid Fusion Mode                          */
+/* ------------------------------------------------------------- */
+.liquid-glass-fusion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 480px;
+  height: 58px;
+  transition: gap 440ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.liquid-glass-fusion.is-fused {
+  gap: 0px;
+}
+.fusion-card {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 440ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fusion-card-left {
+  flex: 1 1 auto;
+  padding: 0 16px;
+  gap: 10px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e4e4e7;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.liquid-glass-fusion.is-fused .fusion-card-left {
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 0px;
+  border-right-color: transparent;
+}
+.fusion-card-btn {
+  width: 110px;
+  flex-shrink: 0;
+  justify-content: center;
+  border-radius: 18px;
+  background: rgba(6, 182, 212, 0.22);
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  color: #a5f3fc;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  cursor: pointer;
+}
+.liquid-glass-fusion.is-fused .fusion-card-btn {
+  border-top-left-radius: 0px;
+  border-bottom-left-radius: 0px;
+  border-left-color: transparent;
+}
+.fusion-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 8px #06b6d4;
+}
+
 /* ------------------------------------------------------------- */
 /* Editorial Typography Mode                                     */
 /* ------------------------------------------------------------- */
@@ -437,8 +516,13 @@ ${isShadowInverted ? `
  * Creates a dedicated WebGL2 Snell refraction renderer for any glass canvas.
  */
 function createSnellRenderer(canvas, opt) {
-  const gl = canvas.getContext('webgl2', { alpha: true, antialias: true, premultipliedAlpha: false });
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const gl = canvas.getContext('webgl2', { alpha: true, antialias: false, premultipliedAlpha: false, powerPreference: 'high-performance' });
   if (!gl) return null;
+
+  // Enable proper alpha blending for glass compositing
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   const vs = \`#version 300 es
     in vec2 aPos;
@@ -593,9 +677,11 @@ function createSnellRenderer(canvas, opt) {
         color.b = pageThrough(p + shift + shiftDir * dispOffset).b;
       }
 
+      // Fresnel-based rim specular and top window glaze
       float cosI = max(frontNormal.z, 0.0);
-      float topGlaze = pow(max(grad.y - 0.3, 0.0), 2.2) * pow(1.0 - cosI, 2.0) * 0.18 * uReflectivity;
-      color += vec3(1.0) * topGlaze;
+      float fresnel = pow(1.0 - cosI, 4.0) * 0.6 * uReflectivity;
+      float topGlaze = pow(max(grad.y - 0.3, 0.0), 2.2) * pow(1.0 - cosI, 2.0) * 0.22 * uReflectivity;
+      color += vec3(1.0) * (topGlaze + fresnel * 0.08);
 
       if (uDarkTint > 0.001) {
         color = mix(color, toLinear(uTintColor), uDarkTint);
@@ -610,6 +696,9 @@ function createSnellRenderer(canvas, opt) {
     const s = gl.createShader(type);
     gl.shaderSource(s, source);
     gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.warn('Shader compile:', gl.getShaderInfoLog(s));
+    }
     return s;
   }
 
@@ -617,10 +706,17 @@ function createSnellRenderer(canvas, opt) {
   gl.attachShader(prog, createShader(gl, gl.VERTEX_SHADER, vs));
   gl.attachShader(prog, createShader(gl, gl.FRAGMENT_SHADER, fs));
   gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.warn('Program link:', gl.getProgramInfoLog(prog));
+  }
 
   const quad = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, quad);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+  const aPos = gl.getAttribLocation(prog, 'aPos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -646,6 +742,7 @@ function createSnellRenderer(canvas, opt) {
   };
 
   let hasSource = false;
+  let lastW = 0, lastH = 0;
 
   return {
     updateTexture(source) {
@@ -656,9 +753,15 @@ function createSnellRenderer(canvas, opt) {
       hasSource = true;
     },
     render(rect, backdropSource) {
-      canvas.width = Math.round(rect.width);
-      canvas.height = Math.round(rect.height);
-      gl.viewport(0, 0, canvas.width, canvas.height);
+      const w = Math.round(rect.width * dpr);
+      const h = Math.round(rect.height * dpr);
+      if (w !== lastW || h !== lastH) {
+        canvas.width = w;
+        canvas.height = h;
+        lastW = w;
+        lastH = h;
+      }
+      gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -688,8 +791,6 @@ function createSnellRenderer(canvas, opt) {
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(locs.uBackdrop, 0);
 
-      const aPos = gl.getAttribLocation(prog, 'aPos');
-      gl.enableVertexAttribArray(aPos);
       gl.bindBuffer(gl.ARRAY_BUFFER, quad);
       gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -904,6 +1005,21 @@ function initLiquidGlass(containerSelector = '#liquid-glass-capsule') {
     });
   }
 
+
+  // Interactive Liquid Fusion Toggle
+  const fusionToggleBtn = container.querySelector('#fusion-toggle-btn');
+  const fusionWrapper = container.querySelector('#liquid-fusion-wrapper');
+  if (fusionToggleBtn && fusionWrapper) {
+    let isFused = false;
+    const statusText = fusionToggleBtn.querySelector('#fusion-status-text');
+    fusionToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isFused = !isFused;
+      fusionWrapper.classList.toggle('is-fused', isFused);
+      if (statusText) statusText.textContent = isFused ? 'Separate ⤢' : 'Fuse ⤡';
+    });
+  }
+
   // Interactive Cupertino Player Controls
   const playerToggleBtn = container.querySelector('#player-toggle-btn');
   if (playerToggleBtn) {
@@ -945,8 +1061,8 @@ function initLiquidGlass(containerSelector = '#liquid-glass-capsule') {
       if (backdropSource) {
         if (trackRenderer) trackRenderer.updateTexture(backdropSource);
         if (lensRenderer) lensRenderer.updateTexture(backdropSource);
-        updateOptics(currentCenterX);
       }
+      updateOptics(currentCenterX);
     },
     snapToTab,
     render() {
@@ -1189,8 +1305,11 @@ ${js}
     }
 
     function resizeDemo() {
-      backdropCanvas.width = window.innerWidth;
-      backdropCanvas.height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      backdropCanvas.width = Math.round(window.innerWidth * dpr);
+      backdropCanvas.height = Math.round(window.innerHeight * dpr);
+      backdropCanvas.style.width = window.innerWidth + 'px';
+      backdropCanvas.style.height = window.innerHeight + 'px';
       drawBackdrop();
 
       if (!glassEngine) {
@@ -1202,9 +1321,17 @@ ${js}
       }
     }
 
+    // Continuous RAF loop keeps glass in sync with the page
+    let rafId = null;
+    function renderLoop() {
+      if (glassEngine) glassEngine.render();
+      rafId = requestAnimationFrame(renderLoop);
+    }
+
     window.addEventListener('resize', resizeDemo);
-    window.addEventListener('load', resizeDemo);
+    window.addEventListener('load', () => { resizeDemo(); renderLoop(); });
     resizeDemo();
+    renderLoop();
 
     // Drag-Anywhere Physics for the whole capsule wrapper
     const wrapper = document.getElementById('capsule-wrapper');
@@ -1257,7 +1384,7 @@ ${js}
 export function generateStandaloneHtml(
   config: LiquidGlassConfig,
   shadowTone: ShadowTone = 'dark',
-  innerContentMode: 'text' | 'nav' | 'player' = 'nav'
+  innerContentMode: 'text' | 'nav' | 'player' | 'fusion' = 'nav'
 ): string {
   return generateSeparatedExportCode(config, shadowTone, innerContentMode).fullStandaloneHtml;
 }
@@ -1269,7 +1396,7 @@ export function generateNodeReactCode(
   config: LiquidGlassConfig,
   shadowTone: ShadowTone = 'dark',
   isShadowInverted: boolean = false,
-  innerContentMode: 'text' | 'nav' | 'player' = 'nav',
+  innerContentMode: 'text' | 'nav' | 'player' | 'fusion' = 'nav',
   borderGradient?: string
 ): {
   installCommand: string;

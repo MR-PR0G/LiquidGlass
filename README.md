@@ -1,5 +1,11 @@
 <div align="center">
 
+### What's New in v0.3.0
+- **Molten Liquid Fusion (`<LiquidFusionContainer />`)**: Seamless capillary Young-Laplace meniscus curvature bridging two liquid glass modules on contact with smooth harmonic catenoid pinch-off.
+- **Export HTML / JS Optics Parity Overhaul**: Integrated WebGL2 alpha blending (`gl.BLEND`), automatic `devicePixelRatio` scaling, continuous 120 FPS RAF loop, cached uniforms, and Fresnel rim specular response.
+- **Custom High-Resolution Favicon Suite**: Authentic purple glass MP orbital insignia generated in full multi-resolution matrix (ICO, 32px, 192px, 512px, Apple Touch).
+
+
 # 💧 Liquid Glass
 
 ### The physical liquid glass effect for React & the modern web.
