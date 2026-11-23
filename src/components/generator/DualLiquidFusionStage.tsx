@@ -1,4 +1,4 @@
-import React, { useState, useRef, useId, useCallback } from 'react';
+import React, { useState, useRef, useId, useEffect } from 'react';
 import { SoapBubbleSurface } from '../soap-bubble';
 import { computeGlassBoxShadow, ShadowTone } from '../../types';
 
@@ -56,16 +56,16 @@ function createLiquidFusionPath(
   // Case 3: Viscous Liquid Glass Meniscus Bridge (0.5 < gap < threshold)
   // Continuous Young-Laplace catenoid bridge linking top and bottom corners
   const t = Math.max(0, Math.min(1, (threshold - gap) / threshold));
-  const u = Math.pow(t, 1.3); // Viscous fluid ease
+  const u = Math.pow(t, 1.4); // Organic viscous progression
 
-  // Fillet tangent attachment points
-  const blendW = Math.max(radius * 0.65, radius * (1.1 - u * 0.4));
+  // Tangential blend span on the corners
+  const blendW = Math.max(radius * 0.7, radius * (1.15 - u * 0.45));
   const pTopLeft = Math.max(aLeft + radius, aRight - blendW);
   const pTopRight = Math.min(bRight - radius, bLeft + blendW);
   const midX = (aRight + bLeft) / 2;
 
-  // Neck dip: starts deep at large gap, smoothly flattens to 0 at gap = 0
-  const dipY = Math.max(0, radius * Math.pow(1 - u, 1.4) * 0.85);
+  // Neck dip: starts as soft meniscus and flattens to 0 at gap = 0
+  const dipY = Math.max(0, radius * Math.pow(1 - u, 1.4) * 0.90);
 
   const spanLeft = midX - pTopLeft;
   const spanRight = pTopRight - midX;
@@ -112,15 +112,88 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   const [posX, setPosX] = useState({ a: -90, b: 90 });
   const [activeTarget, setActiveTarget] = useState<'a' | 'b' | null>(null);
 
+  // Jelly Spring Elastic Wobble State (momentum recoil upon snap or pinch-off)
+  const [jellyWobble, setJellyWobble] = useState({ scaleX: 1, scaleY: 1 });
+  const wasBridgedRef = useRef(false);
+  const animFrameRef = useRef<number | null>(null);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragInfoRef = useRef<{ clientX: number; startPos: number; target: 'a' | 'b' } | null>(null);
 
   const boxW = 145;
   const boxH = 68;
   const radius = Math.round(boxH / 2); // 34px pill radius
-  const threshold = 60; // Active fusion reach threshold in px
+  // Refined natural proximity threshold: connects only when nicely close (28px instead of 60px)
+  const threshold = 28;
 
   const clipId = useId().replace(/:/g, '_');
+
+  // Trigger organic damped harmonic jelly oscillation
+  const triggerJellyWobble = (intensity = 0.08) => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    const startTime = performance.now();
+    const duration = 520; // ms
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      // Damped harmonic oscillator: e^(-4t) * sin(18t)
+      const decay = Math.exp(-progress * 4.5);
+      const wave = Math.sin(progress * Math.PI * 4.5);
+      const offset = intensity * decay * wave;
+
+      setJellyWobble({
+        scaleX: 1 + offset * 1.3,
+        scaleY: 1 - offset * 0.9,
+      });
+
+      if (progress < 1) {
+        animFrameRef.current = requestAnimationFrame(step);
+      } else {
+        setJellyWobble({ scaleX: 1, scaleY: 1 });
+        animFrameRef.current = null;
+      }
+    };
+    animFrameRef.current = requestAnimationFrame(step);
+  };
+
+  // Center alignment and bounds
+  const stageMinX = Math.min(posX.a, posX.b) - boxW / 2;
+  const stageMaxX = Math.max(posX.a, posX.b) + boxW / 2;
+  const stageW = stageMaxX - stageMinX;
+
+  const localA = posX.a - stageMinX;
+  const localB = posX.b - stageMinX;
+
+  const { path: fusionPath, isBridged, gap } = createLiquidFusionPath(
+    localA,
+    localB,
+    boxW,
+    boxH,
+    radius,
+    threshold
+  );
+
+  // Detect state transitions to trigger satisfying jelly recoil
+  useEffect(() => {
+    if (isBridged !== wasBridgedRef.current) {
+      if (isBridged) {
+        // Coalescence impact: slight horizontal expansion
+        triggerJellyWobble(0.06);
+      } else {
+        // Elastic pinch-off rupture: snappy rebound
+        triggerJellyWobble(0.09);
+      }
+      wasBridgedRef.current = isBridged;
+    }
+  }, [isBridged]);
+
+  // Clean up animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
 
   // Multi-Touch and Mouse Dragging
   const startDrag = (target: 'a' | 'b') => (e: React.PointerEvent) => {
@@ -144,7 +217,6 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
 
     setPosX((prev) => {
       if (target === 'a') {
-        // Stop at collision point so they don't awkwardly slide on top of each other
         const maxA = prev.b - boxW;
         return { ...prev, a: Math.max(-260, Math.min(maxA, nextVal)) };
       } else {
@@ -161,24 +233,6 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
     dragInfoRef.current = null;
     setActiveTarget(null);
   };
-
-  // Center alignment and bounds
-  const stageMinX = Math.min(posX.a, posX.b) - boxW / 2;
-  const stageMaxX = Math.max(posX.a, posX.b) + boxW / 2;
-  const stageW = stageMaxX - stageMinX;
-
-  // Convert to local SVG coordinates where 0 is stageMinX
-  const localA = posX.a - stageMinX;
-  const localB = posX.b - stageMinX;
-
-  const { path: fusionPath, isBridged, gap } = createLiquidFusionPath(
-    localA,
-    localB,
-    boxW,
-    boxH,
-    radius,
-    threshold
-  );
 
   return (
     <div 
@@ -201,13 +255,14 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
       </svg>
 
       {/* UNIFIED LIQUID GLASS CONTAINER:
-          Positioned accurately in the center, hosting the single uninterrupted liquid glass surface */}
+          With jelly spring oscillation on coalescence and pinch-off */}
       <div
         className="relative flex items-center pointer-events-auto"
         style={{
           width: `${stageW}px`,
           height: `${boxH}px`,
-          transform: `translate3d(${stageMinX + stageW / 2}px, 0, 0)`,
+          transform: `translate3d(${stageMinX + stageW / 2}px, 0, 0) scale(${jellyWobble.scaleX}, ${jellyWobble.scaleY})`,
+          transformOrigin: 'center center',
           willChange: 'width, transform',
         }}
       >

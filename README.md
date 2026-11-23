@@ -1,7 +1,11 @@
 <div align="center">
 
 ### What's New in v0.3.0
-- **Molten Liquid Fusion (`<LiquidFusionContainer />`)**: Seamless capillary Young-Laplace meniscus curvature bridging two liquid glass modules on contact with smooth harmonic catenoid pinch-off.
+- **Molten Liquid Fusion & Meniscus Coalescence (`<LiquidFusionContainer />`)**:
+  - Calibrated 28px proximity activation so capsules only fuse when naturally close.
+  - Organic Young-Laplace concave meniscus curves blending seamlessly from top corners to bottom corners.
+  - Damped harmonic jelly spring recoil (elastic squash & stretch) on coalescence and pinch-off.
+  - Zero-jitter multi-touch direct tracking with collision prevention.
 - **Export HTML / JS Optics Parity Overhaul**: Integrated WebGL2 alpha blending (`gl.BLEND`), automatic `devicePixelRatio` scaling, continuous 120 FPS RAF loop, cached uniforms, and Fresnel rim specular response.
 - **Custom High-Resolution Favicon Suite**: Authentic purple glass MP orbital insignia generated in full multi-resolution matrix (ICO, 32px, 192px, 512px, Apple Touch).
 
