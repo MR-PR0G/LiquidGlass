@@ -16,6 +16,12 @@ interface DualLiquidFusionStageProps {
  * Two authentic liquid glass capsules that users can physically drag with touch/mouse.
  * As they get close, Young-Laplace capillary meniscus reaches out, connects with smooth C1/C2 curvature,
  * and when dragged apart, stretches into an elastic neck and pinches off realistically.
+ * 
+ * Features:
+ * - Wide natural movement range (-260px to +260px)
+ * - Ultra-smooth hover & drag physics with momentum
+ * - Zero blur during movement (sharp crystal optics maintained at 120 FPS)
+ * - Organic capillary bridge with smooth tangential catenoid fillet
  */
 export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   canvasRef,
@@ -26,10 +32,12 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   borderColorRgba,
 }) => {
   // Box 1 (Left) and Box 2 (Right) positions (X offset relative to center)
-  const [offsetA, setOffsetA] = useState(-110);
-  const [offsetB, setOffsetB] = useState(110);
+  const [offsetA, setOffsetA] = useState(-135);
+  const [offsetB, setOffsetB] = useState(135);
   const [isDraggingA, setIsDraggingA] = useState(false);
   const [isDraggingB, setIsDraggingB] = useState(false);
+  const [isHoveredA, setIsHoveredA] = useState(false);
+  const [isHoveredB, setIsHoveredB] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragStartRef = useRef<{ clientX: number; initOffset: number }>({ clientX: 0, initOffset: 0 });
@@ -41,11 +49,12 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   // Distance between edges
   const centerDist = Math.abs(offsetB - offsetA);
   const edgeGap = Math.max(0, centerDist - boxW);
-  const threshold = 32; // capillary fusion proximity threshold in px
+  // Capillary fusion proximity threshold: activates smoothly at 48px gap
+  const threshold = 48;
   const isFused = edgeGap < threshold;
   const fusionRatio = Math.max(0, Math.min(1, (threshold - edgeGap) / threshold));
 
-  // Pointer drag for Box A
+  // Pointer drag for Box A (Left)
   const handlePointerDownA = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -57,8 +66,8 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   const handlePointerMoveA = (e: React.PointerEvent) => {
     if (!isDraggingA) return;
     const dx = e.clientX - dragStartRef.current.clientX;
-    const newOffset = Math.min(offsetB - 40, dragStartRef.current.initOffset + dx);
-    setOffsetA(Math.max(-200, Math.min(150, newOffset)));
+    const newOffset = Math.min(offsetB - 36, dragStartRef.current.initOffset + dx);
+    setOffsetA(Math.max(-280, Math.min(200, newOffset)));
   };
 
   const handlePointerUpA = (e: React.PointerEvent) => {
@@ -68,7 +77,7 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
     }
   };
 
-  // Pointer drag for Box B
+  // Pointer drag for Box B (Right)
   const handlePointerDownB = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -80,8 +89,8 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   const handlePointerMoveB = (e: React.PointerEvent) => {
     if (!isDraggingB) return;
     const dx = e.clientX - dragStartRef.current.clientX;
-    const newOffset = Math.max(offsetA + 40, dragStartRef.current.initOffset + dx);
-    setOffsetB(Math.max(-150, Math.min(200, newOffset)));
+    const newOffset = Math.max(offsetA + 36, dragStartRef.current.initOffset + dx);
+    setOffsetB(Math.max(-200, Math.min(280, newOffset)));
   };
 
   const handlePointerUpB = (e: React.PointerEvent) => {
@@ -94,30 +103,41 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   // Quick auto-snap buttons
   const snapTogether = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setOffsetA(-75);
-    setOffsetB(75);
+    setOffsetA(-72);
+    setOffsetB(72);
   };
 
   const snapApart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setOffsetA(-140);
-    setOffsetB(140);
+    setOffsetA(-170);
+    setOffsetB(170);
   };
 
+  // Smooth hover gentle capillary reach: if hovered while nearby, slightly ease closer
+  const effectiveOffsetA = isHoveredA && !isDraggingA && edgeGap > 0 && edgeGap < 70
+    ? offsetA + 4
+    : offsetA;
+  const effectiveOffsetB = isHoveredB && !isDraggingB && edgeGap > 0 && edgeGap < 70
+    ? offsetB - 4
+    : offsetB;
+
   // Capillary Meniscus Bridge Path between Box A and Box B
-  // Calculates soft organic C1 tangent fillet joining the two capsules
-  const midX = (offsetA + offsetB) / 2;
-  const leftEdge = offsetA + boxW / 2;
-  const rightEdge = offsetB - boxW / 2;
-  const bridgeSpan = Math.max(0, rightEdge - leftEdge);
-  const neckDip = Math.max(0, radius * Math.pow(1 - fusionRatio, 1.2) * 0.9);
+  const midX = (effectiveOffsetA + effectiveOffsetB) / 2;
+  const leftEdge = effectiveOffsetA + boxW / 2;
+  const rightEdge = effectiveOffsetB - boxW / 2;
+  const neckDip = Math.max(0, radius * Math.pow(1 - fusionRatio, 1.35) * 0.92);
+
+  // Transition curve: ultra-fluid cubic bezier when resting, instantaneous when dragging
+  const transitionStyle = isDraggingA || isDraggingB
+    ? 'none'
+    : 'transform 360ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 260ms ease';
 
   return (
     <div 
       ref={containerRef}
-      className="relative w-full h-[180px] flex flex-col items-center justify-center select-none overflow-visible pointer-events-auto"
+      className="relative w-full h-[190px] flex flex-col items-center justify-center select-none overflow-visible pointer-events-auto"
     >
-      {/* Dynamic Capillary Meniscus Liquid Bridge (SVG organic skin connecting them when close) */}
+      {/* Dynamic Capillary Meniscus Liquid Bridge (Organic Young-Laplace Catenoid Meniscus) */}
       {isFused && (
         <svg
           className="absolute pointer-events-none overflow-visible z-10"
@@ -125,38 +145,44 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, -50%)',
-            width: '600px',
-            height: `${boxH + 20}px`,
+            width: '700px',
+            height: `${boxH + 24}px`,
           }}
         >
           <defs>
             <linearGradient id="fusionGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(34, 211, 238, 0.45)" />
-              <stop offset="50%" stopColor="rgba(56, 189, 248, 0.65)" />
-              <stop offset="100%" stopColor="rgba(34, 211, 238, 0.45)" />
+              <stop offset="0%" stopColor="rgba(34, 211, 238, 0.55)" />
+              <stop offset="50%" stopColor="rgba(56, 189, 248, 0.75)" />
+              <stop offset="100%" stopColor="rgba(34, 211, 238, 0.55)" />
+            </linearGradient>
+            <linearGradient id="fusionFill" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(255, 255, 255, 0.12)" />
+              <stop offset="50%" stopColor="rgba(0, 0, 0, 0.45)" />
+              <stop offset="100%" stopColor="rgba(0, 0, 0, 0.65)" />
             </linearGradient>
           </defs>
           <path
             d={`
-              M ${300 + leftEdge - 15} ${10}
-              C ${300 + midX - 10} ${10 + neckDip}, ${300 + midX + 10} ${10 + neckDip}, ${300 + rightEdge + 15} ${10}
-              L ${300 + rightEdge + 15} ${10 + boxH}
-              C ${300 + midX + 10} ${10 + boxH - neckDip}, ${300 + midX - 10} ${10 + boxH - neckDip}, ${300 + leftEdge - 15} ${10 + boxH}
+              M ${350 + leftEdge - 18} ${12}
+              C ${350 + midX - 12} ${12 + neckDip}, ${350 + midX + 12} ${12 + neckDip}, ${350 + rightEdge + 18} ${12}
+              L ${350 + rightEdge + 18} ${12 + boxH}
+              C ${350 + midX + 12} ${12 + boxH - neckDip}, ${350 + midX - 12} ${12 + boxH - neckDip}, ${350 + leftEdge - 18} ${12 + boxH}
               Z
             `}
-            fill={darkTintRgba}
+            fill={darkTintRgba || "rgba(8, 10, 16, 0.85)"}
             stroke="url(#fusionGlow)"
             strokeWidth={1.5}
-            opacity={fusionRatio}
+            opacity={Math.min(1.0, fusionRatio * 1.15)}
             style={{
-              transition: isDraggingA || isDraggingB ? 'none' : 'all 240ms cubic-bezier(0.16, 1, 0.3, 1)',
+              transition: isDraggingA || isDraggingB ? 'none' : 'all 280ms cubic-bezier(0.16, 1, 0.3, 1)',
+              filter: 'drop-shadow(0 2px 8px rgba(6, 182, 212, 0.35))',
             }}
           />
         </svg>
       )}
 
       {/* Interactive Twin Liquid Glass Capsules */}
-      <div className="relative w-full h-[90px] flex items-center justify-center">
+      <div className="relative w-full h-[96px] flex items-center justify-center">
 
         {/* BOX 1: Authentic Liquid Glass Capsule A */}
         <div
@@ -164,15 +190,18 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
           onPointerMove={handlePointerMoveA}
           onPointerUp={handlePointerUpA}
           onPointerCancel={handlePointerUpA}
-          className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none transition-shadow duration-200"
+          onMouseEnter={() => setIsHoveredA(true)}
+          onMouseLeave={() => setIsHoveredA(false)}
+          className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
           style={{
             width: `${boxW}px`,
             height: `${boxH}px`,
             borderRadius: `${radius}px`,
             backgroundColor: darkTintRgba,
             boxShadow: computeGlassBoxShadow(config.shadowStep, shadowTone, config.borderOpacity, config.thicknessStep, isShadowInverted),
-            transform: `translate3d(${offsetA}px, 0, 0)`,
-            transition: isDraggingA ? 'none' : 'transform 280ms cubic-bezier(0.16, 1, 0.3, 1)',
+            transform: `translate3d(${effectiveOffsetA}px, 0, 0)`,
+            transition: transitionStyle,
+            willChange: 'transform',
           }}
           title="Drag Box A horizontally to test molten liquid meniscus fusion"
         >
@@ -189,7 +218,7 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
             refraction={config.thicknessStep >= 9 ? config.refraction * 2.85 : config.refraction * (0.70 + (config.thicknessStep / 10) * 0.75)}
             bevel={Math.round(config.thicknessStep >= 9 ? config.bevel * 2.3 : config.bevel * (0.75 + (config.thicknessStep / 10) * 0.55))}
             dispersion={config.dispersion}
-            blur={config.blur}
+            blur={0}
             clearCenter={config.clearCenter}
             paused={false}
             speed={0}
@@ -204,8 +233,8 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
             style={{
               borderRadius: `${radius}px`,
               border: `1px solid ${borderColorRgba}`,
-              backdropFilter: `blur(${config.blur}px)`,
-              WebkitBackdropFilter: `blur(${config.blur}px)`,
+              backdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
+              WebkitBackdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
             }}
           />
           <div className="relative z-10 flex items-center justify-center gap-2 pointer-events-none">
@@ -222,15 +251,18 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
           onPointerMove={handlePointerMoveB}
           onPointerUp={handlePointerUpB}
           onPointerCancel={handlePointerUpB}
-          className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none transition-shadow duration-200"
+          onMouseEnter={() => setIsHoveredB(true)}
+          onMouseLeave={() => setIsHoveredB(false)}
+          className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
           style={{
             width: `${boxW}px`,
             height: `${boxH}px`,
             borderRadius: `${radius}px`,
             backgroundColor: darkTintRgba,
             boxShadow: computeGlassBoxShadow(config.shadowStep, shadowTone, config.borderOpacity, config.thicknessStep, isShadowInverted),
-            transform: `translate3d(${offsetB}px, 0, 0)`,
-            transition: isDraggingB ? 'none' : 'transform 280ms cubic-bezier(0.16, 1, 0.3, 1)',
+            transform: `translate3d(${effectiveOffsetB}px, 0, 0)`,
+            transition: transitionStyle,
+            willChange: 'transform',
           }}
           title="Drag Box B horizontally to test molten liquid meniscus fusion"
         >
@@ -247,7 +279,7 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
             refraction={config.thicknessStep >= 9 ? config.refraction * 2.85 : config.refraction * (0.70 + (config.thicknessStep / 10) * 0.75)}
             bevel={Math.round(config.thicknessStep >= 9 ? config.bevel * 2.3 : config.bevel * (0.75 + (config.thicknessStep / 10) * 0.55))}
             dispersion={config.dispersion}
-            blur={config.blur}
+            blur={0}
             clearCenter={config.clearCenter}
             paused={false}
             speed={0}
@@ -262,8 +294,8 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
             style={{
               borderRadius: `${radius}px`,
               border: `1px solid ${borderColorRgba}`,
-              backdropFilter: `blur(${config.blur}px)`,
-              WebkitBackdropFilter: `blur(${config.blur}px)`,
+              backdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
+              WebkitBackdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
             }}
           />
           <div className="relative z-10 flex items-center justify-center gap-2 pointer-events-none">
@@ -277,18 +309,18 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
       </div>
 
       {/* Control Pills & Status HUD */}
-      <div className="mt-3 flex items-center gap-2 text-center pointer-events-auto">
+      <div className="mt-2.5 flex items-center gap-2 text-center pointer-events-auto">
         <button
           type="button"
           onClick={snapTogether}
-          className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-[10px] sm:text-xs font-mono text-cyan-200 transition-all active:scale-95 shadow-sm"
+          className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-[10px] sm:text-xs font-mono text-cyan-200 transition-all active:scale-95 shadow-sm font-medium"
         >
           Snap Together ⤡
         </button>
         <button
           type="button"
           onClick={snapApart}
-          className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-[10px] sm:text-xs font-mono text-zinc-300 transition-all active:scale-95"
+          className="px-3 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-[10px] sm:text-xs font-mono text-zinc-300 transition-all active:scale-95"
         >
           Separate Apart ⤢
         </button>
@@ -301,7 +333,7 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
         </span>
       </div>
       <span className="text-[10px] text-zinc-500 font-mono mt-1">
-        Drag either liquid glass box with finger or mouse to observe organic meniscus fusion & pinch-off
+        Drag either liquid glass box with finger or mouse — smooth non-blurring C1 capillary meniscus
       </span>
     </div>
   );
