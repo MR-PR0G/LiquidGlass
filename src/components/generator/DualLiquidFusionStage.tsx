@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useId } from 'react';
 import { SoapBubbleSurface } from '../soap-bubble';
 import { computeGlassBoxShadow, ShadowTone } from '../../types';
 
@@ -12,11 +12,89 @@ interface DualLiquidFusionStageProps {
 }
 
 /**
- * Pure Liquid Glass Twin Fusion (Capillary Coalescence):
- * Two authentic liquid glass capsules that users can physically drag with touch/mouse.
- * As they meet, they don't awkwardly slide on top of each other — their inner edges
- * organically merge and coalesce into ONE seamless, united liquid glass body.
- * When pulled apart, the fluid bridge stretches, thins into an elastic catenoid neck, and snaps cleanly!
+ * Pure Mathematical Young-Laplace Meniscus Bridge Path.
+ * Generates the unified liquid glass perimeter with smooth C1/C2 tangential fillets.
+ */
+function getUnifiedFusionPath(
+  boxW: number,
+  boxH: number,
+  gap: number,
+  radius: number,
+  threshold: number
+): string {
+  const w1 = boxW;
+  const w2 = boxW;
+  const x2 = w1 + gap;
+
+  // 1. Fully separated when gap >= threshold (Two 100% distinct rounded glass pills)
+  if (gap >= threshold) {
+    const p1 = `M ${radius} 0 L ${w1 - radius} 0 Q ${w1} 0 ${w1} ${radius} L ${w1} ${boxH - radius} Q ${w1} ${boxH} ${w1 - radius} ${boxH} L ${radius} ${boxH} Q 0 ${boxH} 0 ${boxH - radius} L 0 ${radius} Q 0 0 ${radius} 0 Z`;
+    const p2 = `M ${x2 + radius} 0 L ${x2 + w2 - radius} 0 Q ${x2 + w2} 0 ${x2 + w2} ${radius} L ${x2 + w2} ${boxH - radius} Q ${x2 + w2} ${boxH} ${x2 + w2 - radius} ${boxH} L ${x2 + radius} ${boxH} Q ${x2} ${boxH} ${x2} ${boxH - radius} L ${x2} ${radius} Q ${x2} 0 ${x2 + radius} 0 Z`;
+    return `${p1} ${p2}`;
+  }
+
+  // 2. Fully merged into one cohesive pill when gap <= 0.5
+  if (gap <= 0.5) {
+    return `M ${radius} 0 L ${x2 + w2 - radius} 0 Q ${x2 + w2} 0 ${x2 + w2} ${radius} L ${x2 + w2} ${boxH - radius} Q ${x2 + w2} ${boxH} ${x2 + w2 - radius} ${boxH} L ${radius} ${boxH} Q 0 ${boxH} 0 ${boxH - radius} L 0 ${radius} Q 0 0 ${radius} 0 Z`;
+  }
+
+  // 3. Continuous Tangential Meniscus Fillet (0.5 < gap < threshold)
+  // Perfectly smooth C1/C2 curvature: ZERO sharp internal corners, zero abrupt cusps
+  const t = Math.max(0, Math.min(1, (threshold - gap) / threshold));
+  const u = Math.pow(t, 1.25);
+
+  const blendSpan = Math.max(radius * 0.75, radius * (1.15 - u * 0.45));
+  const xTopL = Math.max(radius, w1 - blendSpan);
+  const xTopR = Math.min(x2 + w2 - radius, x2 + blendSpan);
+  const xMid = (w1 + x2) / 2;
+
+  // Neck dip depth: starts as soft meniscus and flattens to 0 at gap = 0
+  const dipY = Math.max(0, radius * Math.pow(1 - u, 1.35) * 0.88);
+
+  const dxL = xMid - xTopL;
+  const dxR = xTopR - xMid;
+
+  let d = `M ${radius} 0 `;
+  d += `L ${xTopL} 0 `;
+
+  // TOP MENISCUS FILLET
+  if (dipY > 0.05) {
+    d += `C ${xTopL + dxL * 0.45} 0, ${xMid - dxL * 0.4} ${dipY}, ${xMid} ${dipY} `;
+    d += `C ${xMid + dxR * 0.4} ${dipY}, ${xTopR - dxR * 0.45} 0, ${xTopR} 0 `;
+  } else {
+    d += `L ${xTopR} 0 `;
+  }
+
+  // RIGHT CARD OUTER RIM
+  d += `L ${x2 + w2 - radius} 0 `;
+  d += `Q ${x2 + w2} 0 ${x2 + w2} ${radius} `;
+  d += `L ${x2 + w2} ${boxH - radius} `;
+  d += `Q ${x2 + w2} ${boxH} ${x2 + w2 - radius} ${boxH} `;
+  d += `L ${xTopR} ${boxH} `;
+
+  // BOTTOM MENISCUS FILLET
+  if (dipY > 0.05) {
+    d += `C ${xTopR - dxR * 0.45} ${boxH}, ${xMid + dxR * 0.4} ${boxH - dipY}, ${xMid} ${boxH - dipY} `;
+    d += `C ${xMid - dxL * 0.4} ${boxH - dipY}, ${xTopL + dxL * 0.45} ${boxH}, ${xTopL} ${boxH} `;
+  } else {
+    d += `L ${xTopL} ${boxH} `;
+  }
+
+  // LEFT CARD FINISH
+  d += `L ${radius} ${boxH} `;
+  d += `Q 0 ${boxH} 0 ${boxH - radius} `;
+  d += `L 0 ${radius} `;
+  d += `Q 0 0 ${radius} 0 Z`;
+
+  return d;
+}
+
+/**
+ * Authentic Coalescent Liquid Glass Fusion Stage:
+ * The glass perimeter itself is dynamically cut out by the mathematical Young-Laplace path!
+ * - When distant: Two separate, distinct liquid glass rounded bodies.
+ * - When dragged close: The liquid glass perimeter bridges the gap and coalesces into a single unified molten glass capsule!
+ * - Physical Snell ray-tracing runs inside the united liquid boundary with specular rim illumination.
  */
 export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   canvasRef,
@@ -26,178 +104,91 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   darkTintRgba,
   borderColorRgba,
 }) => {
-  // Balanced, perfectly centered resting positions
-  const [offsetA, setOffsetA] = useState(-115);
-  const [offsetB, setOffsetB] = useState(115);
-  const [isDraggingA, setIsDraggingA] = useState(false);
-  const [isDraggingB, setIsDraggingB] = useState(false);
-  const [isHoveredA, setIsHoveredA] = useState(false);
-  const [isHoveredB, setIsHoveredB] = useState(false);
+  const [gap, setGap] = useState(48); // Initial gap in px
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ clientX: number; initGap: number }>({ clientX: 0, initGap: 48 });
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const dragStartRef = useRef<{ clientX: number; initOffset: number }>({ clientX: 0, initOffset: 0 });
-
-  const boxW = 150;
+  const boxW = 155;
   const boxH = 68;
-  const outerRad = Math.round(boxH / 2); // 34px pill radius
+  const radius = Math.round(boxH / 2);
+  const threshold = 40; // Proximity threshold where molten glass merges
 
-  // Physics collision boundary: centers cannot get closer than boxW (no overlapping!)
-  // Contact occurs when centerDist == boxW (edgeGap == 0)
-  const centerDist = Math.abs(offsetB - offsetA);
-  const edgeGap = Math.max(0, centerDist - boxW);
+  const clipId = useId().replace(/:/g, '_');
 
-  // Proximity threshold for capillary meniscus bridge (starts at 50px gap)
-  const threshold = 50;
-  const isFused = edgeGap < threshold;
-  const fusionRatio = Math.max(0, Math.min(1, (threshold - edgeGap) / threshold));
-
-  // Dynamic inner corner radius: turns from full pill (34px) down to 0px as gap approaches 0
-  const innerRad = Math.round(outerRad * (1 - Math.pow(fusionRatio, 1.4)));
-
-  // Pointer drag for Box A (Left) - constrained so it cannot push past Box B
-  const handlePointerDownA = (e: React.PointerEvent) => {
+  // Drag interaction to adjust the gap between the two glass cores
+  const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    setIsDraggingA(true);
-    dragStartRef.current = { clientX: e.clientX, initOffset: offsetA };
+    setIsDragging(true);
+    dragStartRef.current = { clientX: e.clientX, initGap: gap };
   };
 
-  const handlePointerMoveA = (e: React.PointerEvent) => {
-    if (!isDraggingA) return;
-    const dx = e.clientX - dragStartRef.current.clientX;
-    // Hard physics stop: center of A cannot exceed offsetB - boxW (zero overlap!)
-    const maxA = offsetB - boxW;
-    const newOffset = Math.min(maxA, dragStartRef.current.initOffset + dx);
-    setOffsetA(Math.max(-240, newOffset));
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const dx = Math.abs(e.clientX - dragStartRef.current.clientX);
+    // Moving inwards closes gap; moving outwards opens gap
+    const dir = e.clientX > dragStartRef.current.clientX ? 1 : -1;
+    const newGap = Math.max(0, Math.min(120, dragStartRef.current.initGap + (e.clientX - dragStartRef.current.clientX) * 1.5));
+    setGap(newGap);
   };
 
-  const handlePointerUpA = (e: React.PointerEvent) => {
-    if (isDraggingA) {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isDragging) {
       try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch (_) {}
-      setIsDraggingA(false);
+      setIsDragging(false);
     }
   };
 
-  // Pointer drag for Box B (Right) - constrained so it cannot push past Box A
-  const handlePointerDownB = (e: React.PointerEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    setIsDraggingB(true);
-    dragStartRef.current = { clientX: e.clientX, initOffset: offsetB };
-  };
-
-  const handlePointerMoveB = (e: React.PointerEvent) => {
-    if (!isDraggingB) return;
-    const dx = e.clientX - dragStartRef.current.clientX;
-    // Hard physics stop: center of B cannot be less than offsetA + boxW (zero overlap!)
-    const minB = offsetA + boxW;
-    const newOffset = Math.max(minB, dragStartRef.current.initOffset + dx);
-    setOffsetB(Math.min(240, newOffset));
-  };
-
-  const handlePointerUpB = (e: React.PointerEvent) => {
-    if (isDraggingB) {
-      try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch (_) {}
-      setIsDraggingB(false);
-    }
-  };
-
-  // Gentle hover capillary tension when close
-  const effectiveOffsetA = isHoveredA && !isDraggingA && edgeGap > 2 && edgeGap < 60
-    ? offsetA + 4
-    : offsetA;
-  const effectiveOffsetB = isHoveredB && !isDraggingB && edgeGap > 2 && edgeGap < 60
-    ? offsetB - 4
-    : offsetB;
-
-  // Bridge Catenoid Meniscus geometry
-  const midX = (effectiveOffsetA + effectiveOffsetB) / 2;
-  const leftContactEdge = effectiveOffsetA + boxW / 2;
-  const rightContactEdge = effectiveOffsetB - boxW / 2;
-  const neckDip = Math.max(0, outerRad * Math.pow(1 - fusionRatio, 1.3) * 0.88);
-
-  const transitionStyle = isDraggingA || isDraggingB
-    ? 'none'
-    : 'transform 340ms cubic-bezier(0.16, 1, 0.3, 1), border-radius 240ms ease';
+  const totalWidth = boxW * 2 + gap;
+  const pathD = getUnifiedFusionPath(boxW, boxH, gap, radius, threshold);
+  const isFused = gap < threshold;
 
   return (
     <div 
-      ref={containerRef}
-      className="relative w-full h-[150px] flex flex-col items-center justify-center select-none overflow-visible pointer-events-auto my-auto"
+      className="relative w-full h-[150px] flex items-center justify-center select-none overflow-visible pointer-events-auto my-auto"
     >
-      {/* High-Viscosity Organic Catenoid Liquid Meniscus Bridge */}
-      {isFused && (
-        <svg
-          className="absolute pointer-events-none overflow-visible z-15"
-          style={{
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '640px',
-            height: `${boxH + 20}px`,
-          }}
-        >
-          <defs>
-            <linearGradient id="coalesceGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(34, 211, 238, 0.60)" />
-              <stop offset="50%" stopColor="rgba(56, 189, 248, 0.80)" />
-              <stop offset="100%" stopColor="rgba(34, 211, 238, 0.60)" />
-            </linearGradient>
-          </defs>
-          <path
-            d={`
-              M ${320 + leftContactEdge - 8} ${10}
-              C ${320 + midX - 8} ${10 + neckDip}, ${320 + midX + 8} ${10 + neckDip}, ${320 + rightContactEdge + 8} ${10}
-              L ${320 + rightContactEdge + 8} ${10 + boxH}
-              C ${320 + midX + 8} ${10 + boxH - neckDip}, ${320 + midX - 8} ${10 + boxH - neckDip}, ${320 + leftContactEdge - 8} ${10 + boxH}
-              Z
-            `}
-            fill={darkTintRgba || "rgba(8, 10, 16, 0.85)"}
-            stroke="url(#coalesceGlow)"
-            strokeWidth={1.4}
-            opacity={Math.min(1.0, fusionRatio * 1.2)}
-            style={{
-              transition: isDraggingA || isDraggingB ? 'none' : 'all 240ms cubic-bezier(0.16, 1, 0.3, 1)',
-              filter: 'drop-shadow(0 0 10px rgba(6, 182, 212, 0.35))',
-            }}
-          />
-        </svg>
-      )}
+      {/* SVG ClipPath Definition for the dynamic unified liquid glass boundary */}
+      <svg width="0" height="0" className="absolute pointer-events-none">
+        <defs>
+          <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
+            <path d={pathD} />
+          </clipPath>
+          <linearGradient id="specularRim" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.65)" />
+            <stop offset="40%" stopColor="rgba(34, 211, 238, 0.40)" />
+            <stop offset="70%" stopColor="rgba(56, 189, 248, 0.50)" />
+            <stop offset="100%" stopColor="rgba(255, 255, 255, 0.40)" />
+          </linearGradient>
+        </defs>
+      </svg>
 
-      {/* Perfectly Centered Observation Arena */}
-      <div className="relative w-full h-[88px] flex items-center justify-center">
-
-        {/* LIQUID GLASS BOX A (Left) */}
+      {/* UNIFIED LIQUID GLASS CONTAINER - Physical Snell Refraction Layer inside the Young-Laplace boundary */}
+      <div
+        className="relative flex items-center justify-between pointer-events-auto"
+        style={{
+          width: `${totalWidth}px`,
+          height: `${boxH}px`,
+          transition: isDragging ? 'none' : 'width 260ms cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        {/* Layer 1: True WebGL Physical Snell Refraction masked exactly to the unified molten boundary */}
         <div
-          onPointerDown={handlePointerDownA}
-          onPointerMove={handlePointerMoveA}
-          onPointerUp={handlePointerUpA}
-          onPointerCancel={handlePointerUpA}
-          onMouseEnter={() => setIsHoveredA(true)}
-          onMouseLeave={() => setIsHoveredA(false)}
-          className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
+          className="absolute inset-0 w-full h-full pointer-events-none"
           style={{
-            width: `${boxW}px`,
-            height: `${boxH}px`,
-            borderRadius: `${outerRad}px ${innerRad}px ${innerRad}px ${outerRad}px`,
-            backgroundColor: darkTintRgba,
+            clipPath: `url(#${clipId})`,
+            WebkitClipPath: `url(#${clipId})`,
             boxShadow: computeGlassBoxShadow(config.shadowStep, shadowTone, config.borderOpacity, config.thicknessStep, isShadowInverted),
-            transform: `translate3d(${effectiveOffsetA}px, 0, 0)`,
-            transition: transitionStyle,
-            willChange: 'transform, border-radius',
           }}
         >
-          {/* Authentic WebGL Snell Refraction Layer */}
           <SoapBubbleSurface
             backdrop={canvasRef}
             interactive={false}
             wobble={0}
             tilt={0}
-            radius={outerRad}
-            topRadius={outerRad}
-            bottomRadius={outerRad}
+            radius={radius}
+            topRadius={radius}
+            bottomRadius={radius}
             glass={config.glass}
             refraction={config.thicknessStep >= 9 ? config.refraction * 2.85 : config.refraction * (0.70 + (config.thicknessStep / 10) * 0.75)}
             bevel={Math.round(config.thicknessStep >= 9 ? config.bevel * 2.3 : config.bevel * (0.75 + (config.thicknessStep / 10) * 0.55))}
@@ -215,14 +206,42 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
             tint={darkTintRgba}
             className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden"
             style={{
-              borderRadius: `${outerRad}px ${innerRad}px ${innerRad}px ${outerRad}px`,
-              border: `1px solid ${borderColorRgba}`,
+              backgroundColor: darkTintRgba,
               backdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
               WebkitBackdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
-              transition: 'border-radius 240ms ease',
             }}
           />
-          <div className="relative z-10 flex items-center justify-center gap-2 pointer-events-none">
+        </div>
+
+        {/* Layer 2: Continuous Glowing Specular Rim Contour tracing the entire liquid boundary */}
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-10"
+          style={{ width: `${totalWidth}px`, height: `${boxH}px` }}
+        >
+          <path
+            d={pathD}
+            fill="none"
+            stroke="url(#specularRim)"
+            strokeWidth={1.3}
+            style={{
+              filter: isFused ? 'drop-shadow(0 0 8px rgba(6, 182, 212, 0.40))' : 'none',
+              transition: isDragging ? 'none' : 'filter 240ms ease',
+            }}
+          />
+        </svg>
+
+        {/* Layer 3: Interactive Glass Cores (Glass A & Glass B) */}
+        {/* Left Core: Glass A */}
+        <div
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="relative z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
+          style={{ width: `${boxW}px`, height: `${boxH}px` }}
+          title="Drag horizontally to fuse or separate the molten liquid glass"
+        >
+          <div className="flex items-center justify-center gap-2 pointer-events-none">
             <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] animate-pulse" />
             <span className="font-mono text-xs font-bold text-white tracking-widest uppercase drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Glass A
@@ -230,60 +249,17 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
           </div>
         </div>
 
-        {/* LIQUID GLASS BOX B (Right) */}
+        {/* Right Core: Glass B */}
         <div
-          onPointerDown={handlePointerDownB}
-          onPointerMove={handlePointerMoveB}
-          onPointerUp={handlePointerUpB}
-          onPointerCancel={handlePointerUpB}
-          onMouseEnter={() => setIsHoveredB(true)}
-          onMouseLeave={() => setIsHoveredB(false)}
-          className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
-          style={{
-            width: `${boxW}px`,
-            height: `${boxH}px`,
-            borderRadius: `${innerRad}px ${outerRad}px ${outerRad}px ${innerRad}px`,
-            backgroundColor: darkTintRgba,
-            boxShadow: computeGlassBoxShadow(config.shadowStep, shadowTone, config.borderOpacity, config.thicknessStep, isShadowInverted),
-            transform: `translate3d(${effectiveOffsetB}px, 0, 0)`,
-            transition: transitionStyle,
-            willChange: 'transform, border-radius',
-          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="relative z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
+          style={{ width: `${boxW}px`, height: `${boxH}px` }}
+          title="Drag horizontally to fuse or separate the molten liquid glass"
         >
-          {/* Authentic WebGL Snell Refraction Layer */}
-          <SoapBubbleSurface
-            backdrop={canvasRef}
-            interactive={false}
-            wobble={0}
-            tilt={0}
-            radius={outerRad}
-            topRadius={outerRad}
-            bottomRadius={outerRad}
-            glass={config.glass}
-            refraction={config.thicknessStep >= 9 ? config.refraction * 2.85 : config.refraction * (0.70 + (config.thicknessStep / 10) * 0.75)}
-            bevel={Math.round(config.thicknessStep >= 9 ? config.bevel * 2.3 : config.bevel * (0.75 + (config.thicknessStep / 10) * 0.55))}
-            dispersion={config.dispersion}
-            blur={0}
-            clearCenter={config.clearCenter}
-            paused={false}
-            speed={0}
-            oilCoverage={0}
-            oilOpacity={0}
-            iridescence={0}
-            glintIntensity={0}
-            reflectivity={0.0}
-            thickness={config.thickness}
-            tint={darkTintRgba}
-            className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden"
-            style={{
-              borderRadius: `${innerRad}px ${outerRad}px ${outerRad}px ${innerRad}px`,
-              border: `1px solid ${borderColorRgba}`,
-              backdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
-              WebkitBackdropFilter: config.blur > 0 ? `blur(${config.blur}px)` : undefined,
-              transition: 'border-radius 240ms ease',
-            }}
-          />
-          <div className="relative z-10 flex items-center justify-center gap-2 pointer-events-none">
+          <div className="flex items-center justify-center gap-2 pointer-events-none">
             <span className="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8] animate-pulse" />
             <span className="font-mono text-xs font-bold text-white tracking-widest uppercase drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               Glass B
