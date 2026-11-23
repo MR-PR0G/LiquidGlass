@@ -2337,7 +2337,12 @@ export const InteractiveGlassSandbox: React.FC<InteractiveGlassSandboxProps> = (
             title="Export separated Web Code (HTML, CSS & JavaScript)"
           >
             <Code2 size={15} className="text-sky-400 flex-shrink-0" />
-            <span>Web Code</span>
+            <span className="flex items-center gap-1.5">
+              <span>Web Code</span>
+              <span className="text-[8.5px] px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40 font-mono font-bold tracking-wider uppercase">
+                Alpha
+              </span>
+            </span>
           </button>
 
           {/* Button 3: Priority 3 - Rich Technical Documentation */}
@@ -2509,10 +2514,15 @@ import '@mr-prog/liquid-glass/liquid-glass.css';
                 <div>
                   <h4 className="font-mono text-xs sm:text-sm font-bold text-white tracking-wide flex items-center gap-2">
                     <span>WEB CODE EXPORT (HTML / CSS / JS)</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono font-bold border border-cyan-500/30">Vanilla & CMS</span>
+                    <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-mono font-bold border border-amber-400/40 uppercase tracking-wider">
+                      Alpha
+                    </span>
+                    <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono font-bold border border-cyan-500/30 hidden sm:inline-block">
+                      Vanilla & CMS
+                    </span>
                   </h4>
                   <p className="text-[11px] text-zinc-400 font-sans mt-0.5">
-                    Zero-dependency production HTML, CSS, and JS ready to drop into any website or CMS.
+                    Zero-dependency standalone HTML, CSS, and WebGL shader code (Alpha preview — actively in development).
                   </p>
                 </div>
               </div>
