@@ -1,4 +1,4 @@
-import React, { useState, useRef, useId, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useId, useCallback } from 'react';
 import { SoapBubbleSurface } from '../soap-bubble';
 import { computeGlassBoxShadow, ShadowTone } from '../../types';
 
@@ -12,94 +12,92 @@ interface DualLiquidFusionStageProps {
 }
 
 /**
- * Calculates continuous C1/C2 Young-Laplace Meniscus Bridge Path between two liquid glass boxes:
- * - Box A: centered at posA, size [boxW, boxH]
- * - Box B: centered at posB, size [boxW, boxH]
- * - When edgeGap >= threshold: Returns two separate rounded pills.
- * - When edgeGap < threshold: Returns a unified fluid skin with organic capillary curves merging them.
+ * Builds the authentic Molten Liquid Glass boundary path.
+ * When separated (gap >= threshold): Returns two separate rounded pills.
+ * When in contact range (gap < threshold): Returns a seamless fluid contour
+ * with smooth concave C1/C2 catenoid arcs bridging from top corner to top corner,
+ * and bottom corner to bottom corner, with ZERO interior dividing lines.
  */
-function computeMeniscusPath(
-  posA: number,
-  posB: number,
+function createLiquidFusionPath(
+  x1: number,
+  x2: number,
   boxW: number,
   boxH: number,
   radius: number,
-  threshold: number,
-  originX: number
-): string {
-  // Ensure A is always left of B
-  const leftPos = Math.min(posA, posB);
-  const rightPos = Math.max(posA, posB);
+  threshold: number
+): { path: string; isBridged: boolean; gap: number } {
+  const leftX = Math.min(x1, x2);
+  const rightX = Math.max(x1, x2);
 
-  // Absolute coordinates relative to SVG origin
-  const x1Left = (leftPos - boxW / 2) - originX;
-  const x1Right = (leftPos + boxW / 2) - originX;
-  const x2Left = (rightPos - boxW / 2) - originX;
-  const x2Right = (rightPos + boxW / 2) - originX;
+  // Left box bounds
+  const aLeft = leftX - boxW / 2;
+  const aRight = leftX + boxW / 2;
 
-  const gap = Math.max(0, x2Left - x1Right);
+  // Right box bounds
+  const bLeft = rightX - boxW / 2;
+  const bRight = rightX + boxW / 2;
 
-  // 1. Fully separated: Two distinct rounded pills
-  if (gap >= threshold) {
-    const p1 = `M ${x1Left + radius} 0 L ${x1Right - radius} 0 Q ${x1Right} 0 ${x1Right} ${radius} L ${x1Right} ${boxH - radius} Q ${x1Right} ${boxH} ${x1Right - radius} ${boxH} L ${x1Left + radius} ${boxH} Q ${x1Left} ${boxH} ${x1Left} ${boxH - radius} L ${x1Left} ${radius} Q ${x1Left} 0 ${x1Left + radius} 0 Z`;
-    const p2 = `M ${x2Left + radius} 0 L ${x2Right - radius} 0 Q ${x2Right} 0 ${x2Right} ${radius} L ${x2Right} ${boxH - radius} Q ${x2Right} ${boxH} ${x2Right - radius} ${boxH} L ${x2Left + radius} ${boxH} Q ${x2Left} ${boxH} ${x2Left} ${boxH - radius} L ${x2Left} ${radius} Q ${x2Left} 0 ${x2Left + radius} 0 Z`;
-    return `${p1} ${p2}`;
+  const gap = Math.max(0, bLeft - aRight);
+  const isBridged = gap < threshold;
+
+  // Case 1: Fully Separated (Two independent rounded pills)
+  if (!isBridged) {
+    const pillA = `M ${aLeft + radius} 0 L ${aRight - radius} 0 Q ${aRight} 0 ${aRight} ${radius} L ${aRight} ${boxH - radius} Q ${aRight} ${boxH} ${aRight - radius} ${boxH} L ${aLeft + radius} ${boxH} Q ${aLeft} ${boxH} ${aLeft} ${boxH - radius} L ${aLeft} ${radius} Q ${aLeft} 0 ${aLeft + radius} 0 Z`;
+    const pillB = `M ${bLeft + radius} 0 L ${bRight - radius} 0 Q ${bRight} 0 ${bRight} ${radius} L ${bRight} ${boxH - radius} Q ${bRight} ${boxH} ${bRight - radius} ${boxH} L ${bLeft + radius} ${boxH} Q ${bLeft} ${boxH} ${bLeft} ${boxH - radius} L ${bLeft} ${radius} Q ${bLeft} 0 ${bLeft + radius} 0 Z`;
+    return { path: `${pillA} ${pillB}`, isBridged: false, gap };
   }
 
-  // 2. Fully merged into single pill
+  // Case 2: Fully Coalesced into one seamless capsule (gap near zero)
   if (gap <= 0.5) {
-    return `M ${x1Left + radius} 0 L ${x2Right - radius} 0 Q ${x2Right} 0 ${x2Right} ${radius} L ${x2Right} ${boxH - radius} Q ${x2Right} ${boxH} ${x2Right - radius} ${boxH} L ${x1Left + radius} ${boxH} Q ${x1Left} ${boxH} ${x1Left} ${boxH - radius} L ${x1Left} ${radius} Q ${x1Left} 0 ${x1Left + radius} 0 Z`;
+    const singlePill = `M ${aLeft + radius} 0 L ${bRight - radius} 0 Q ${bRight} 0 ${bRight} ${radius} L ${bRight} ${boxH - radius} Q ${bRight} ${boxH} ${bRight - radius} ${boxH} L ${aLeft + radius} ${boxH} Q ${aLeft} ${boxH} ${aLeft} ${boxH - radius} L ${aLeft} ${radius} Q ${aLeft} 0 ${aLeft + radius} 0 Z`;
+    return { path: singlePill, isBridged: true, gap };
   }
 
-  // 3. Fluid Meniscus Bridge: Soft concave meniscus curves linking top and bottom corners
+  // Case 3: Viscous Liquid Glass Meniscus Bridge (0.5 < gap < threshold)
+  // Continuous Young-Laplace catenoid bridge linking top and bottom corners
   const t = Math.max(0, Math.min(1, (threshold - gap) / threshold));
-  const u = Math.pow(t, 1.25); // Organic viscous progression
+  const u = Math.pow(t, 1.3); // Viscous fluid ease
 
-  // Tangential blend span on the corners
-  const blendSpan = Math.max(radius * 0.7, radius * (1.15 - u * 0.45));
-  const xTopL = Math.max(x1Left + radius, x1Right - blendSpan);
-  const xTopR = Math.min(x2Right - radius, x2Left + blendSpan);
-  const xMid = (x1Right + x2Left) / 2;
+  // Fillet tangent attachment points
+  const blendW = Math.max(radius * 0.65, radius * (1.1 - u * 0.4));
+  const pTopLeft = Math.max(aLeft + radius, aRight - blendW);
+  const pTopRight = Math.min(bRight - radius, bLeft + blendW);
+  const midX = (aRight + bLeft) / 2;
 
-  // Neck dip depth: curves gracefully from inner corner down toward center, flattening as gap -> 0
-  const dipY = Math.max(0, radius * Math.pow(1 - u, 1.35) * 0.88);
+  // Neck dip: starts deep at large gap, smoothly flattens to 0 at gap = 0
+  const dipY = Math.max(0, radius * Math.pow(1 - u, 1.4) * 0.85);
 
-  const dxL = xMid - xTopL;
-  const dxR = xTopR - xMid;
+  const spanLeft = midX - pTopLeft;
+  const spanRight = pTopRight - midX;
 
-  let d = `M ${x1Left + radius} 0 `;
-  d += `L ${xTopL} 0 `;
+  let d = `M ${aLeft + radius} 0 `;
+  // 1. Top edge of Box A
+  d += `L ${pTopLeft} 0 `;
 
-  // TOP MENISCUS FILLET (concave liquid bridge)
-  if (dipY > 0.05) {
-    d += `C ${xTopL + dxL * 0.45} 0, ${xMid - dxL * 0.4} ${dipY}, ${xMid} ${dipY} `;
-    d += `C ${xMid + dxR * 0.4} ${dipY}, ${xTopR - dxR * 0.45} 0, ${xTopR} 0 `;
-  } else {
-    d += `L ${xTopR} 0 `;
-  }
+  // 2. TOP MENISCUS BRIDGE: Smooth concave arc dipping down into the gap
+  d += `C ${pTopLeft + spanLeft * 0.45} 0, ${midX - spanLeft * 0.35} ${dipY}, ${midX} ${dipY} `;
+  d += `C ${midX + spanRight * 0.35} ${dipY}, ${pTopRight - spanRight * 0.45} 0, ${pTopRight} 0 `;
 
-  // RIGHT BOX OUTER CAP
-  d += `L ${x2Right - radius} 0 `;
-  d += `Q ${x2Right} 0 ${x2Right} ${radius} `;
-  d += `L ${x2Right} ${boxH - radius} `;
-  d += `Q ${x2Right} ${boxH} ${x2Right - radius} ${boxH} `;
-  d += `L ${xTopR} ${boxH} `;
+  // 3. Top edge and outer right cap of Box B
+  d += `L ${bRight - radius} 0 `;
+  d += `Q ${bRight} 0 ${bRight} ${radius} `;
+  d += `L ${bRight} ${boxH - radius} `;
+  d += `Q ${bRight} ${boxH} ${bRight - radius} ${boxH} `;
 
-  // BOTTOM MENISCUS FILLET (concave liquid bridge)
-  if (dipY > 0.05) {
-    d += `C ${xTopR - dxR * 0.45} ${boxH}, ${xMid + dxR * 0.4} ${boxH - dipY}, ${xMid} ${boxH - dipY} `;
-    d += `C ${xMid - dxL * 0.4} ${boxH - dipY}, ${xTopL + dxL * 0.45} ${boxH}, ${xTopL} ${boxH} `;
-  } else {
-    d += `L ${xTopL} ${boxH} `;
-  }
+  // 4. Bottom edge of Box B heading left toward bridge
+  d += `L ${pTopRight} ${boxH} `;
 
-  // LEFT BOX OUTER CAP
-  d += `L ${x1Left + radius} ${boxH} `;
-  d += `Q ${x1Left} ${boxH} ${x1Left} ${boxH - radius} `;
-  d += `L ${x1Left} ${radius} `;
-  d += `Q ${x1Left} 0 ${x1Left + radius} 0 Z`;
+  // 5. BOTTOM MENISCUS BRIDGE: Smooth concave arc dipping up into the gap
+  d += `C ${pTopRight - spanRight * 0.45} ${boxH}, ${midX + spanRight * 0.35} ${boxH - dipY}, ${midX} ${boxH - dipY} `;
+  d += `C ${midX - spanLeft * 0.35} ${boxH - dipY}, ${pTopLeft + spanLeft * 0.45} ${boxH}, ${pTopLeft} ${boxH} `;
 
-  return d;
+  // 6. Bottom edge and outer left cap of Box A
+  d += `L ${aLeft + radius} ${boxH} `;
+  d += `Q ${aLeft} ${boxH} ${aLeft} ${boxH - radius} `;
+  d += `L ${aLeft} ${radius} `;
+  d += `Q ${aLeft} 0 ${aLeft + radius} 0 Z`;
+
+  return { path: d, isBridged: true, gap };
 }
 
 export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
@@ -110,108 +108,110 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
   darkTintRgba,
   borderColorRgba,
 }) => {
-  // Independent X positions for Box A and Box B (in device pixels from container center)
-  const [posX, setPosX] = useState({ a: -95, b: 95 });
-  const [draggingTarget, setDraggingTarget] = useState<'a' | 'b' | null>(null);
+  // Independent X positions for Glass A and Glass B (centered around 0)
+  const [posX, setPosX] = useState({ a: -90, b: 90 });
+  const [activeTarget, setActiveTarget] = useState<'a' | 'b' | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const activePointersRef = useRef<Map<number, { target: 'a' | 'b'; startClientX: number; startPos: number }>>(new Map());
+  const dragInfoRef = useRef<{ clientX: number; startPos: number; target: 'a' | 'b' } | null>(null);
 
   const boxW = 145;
   const boxH = 68;
-  const radius = Math.round(boxH / 2);
-  const threshold = 52; // Active capillary reach in px
+  const radius = Math.round(boxH / 2); // 34px pill radius
+  const threshold = 60; // Active fusion reach threshold in px
 
   const clipId = useId().replace(/:/g, '_');
 
-  // Multi-touch & Mouse Event Handlers with separate pointer tracking
-  const handlePointerDown = (target: 'a' | 'b') => (e: React.PointerEvent) => {
+  // Multi-Touch and Mouse Dragging
+  const startDrag = (target: 'a' | 'b') => (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    
-    activePointersRef.current.set(e.pointerId, {
-      target,
-      startClientX: e.clientX,
+
+    dragInfoRef.current = {
+      clientX: e.clientX,
       startPos: target === 'a' ? posX.a : posX.b,
-    });
-    setDraggingTarget(target);
+      target,
+    };
+    setActiveTarget(target);
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    const pointerData = activePointersRef.current.get(e.pointerId);
-    if (!pointerData) return;
-
-    const dx = e.clientX - pointerData.startClientX;
-    const newPos = pointerData.startPos + dx;
+  const onDragMove = (e: React.PointerEvent) => {
+    if (!dragInfoRef.current) return;
+    const { clientX: startX, startPos, target } = dragInfoRef.current;
+    const dx = e.clientX - startX;
+    const nextVal = startPos + dx;
 
     setPosX((prev) => {
-      if (pointerData.target === 'a') {
-        // Box A cannot push through Box B (stop at contact point)
+      if (target === 'a') {
+        // Stop at collision point so they don't awkwardly slide on top of each other
         const maxA = prev.b - boxW;
-        const clampedA = Math.max(-260, Math.min(maxA, newPos));
-        return { ...prev, a: clampedA };
+        return { ...prev, a: Math.max(-260, Math.min(maxA, nextVal)) };
       } else {
-        // Box B cannot push through Box A (stop at contact point)
         const minB = prev.a + boxW;
-        const clampedB = Math.max(minB, Math.min(260, newPos));
-        return { ...prev, b: clampedB };
+        return { ...prev, b: Math.max(minB, Math.min(260, nextVal)) };
       }
     });
   };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    activePointersRef.current.delete(e.pointerId);
+  const stopDrag = (e: React.PointerEvent) => {
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     } catch (_) {}
-    if (activePointersRef.current.size === 0) {
-      setDraggingTarget(null);
-    }
+    dragInfoRef.current = null;
+    setActiveTarget(null);
   };
 
-  // Geometry calculations for unified canvas/SVG wrapper
-  const minLeft = Math.min(posX.a, posX.b) - boxW / 2;
-  const maxRight = Math.max(posX.a, posX.b) + boxW / 2;
-  const totalW = Math.max(boxW * 2, maxRight - minLeft);
-  const originX = minLeft;
+  // Center alignment and bounds
+  const stageMinX = Math.min(posX.a, posX.b) - boxW / 2;
+  const stageMaxX = Math.max(posX.a, posX.b) + boxW / 2;
+  const stageW = stageMaxX - stageMinX;
 
-  const currentGap = Math.max(0, (Math.max(posX.a, posX.b) - boxW / 2) - (Math.min(posX.a, posX.b) + boxW / 2));
-  const isFused = currentGap < threshold;
-  const pathD = computeMeniscusPath(posX.a, posX.b, boxW, boxH, radius, threshold, originX);
+  // Convert to local SVG coordinates where 0 is stageMinX
+  const localA = posX.a - stageMinX;
+  const localB = posX.b - stageMinX;
+
+  const { path: fusionPath, isBridged, gap } = createLiquidFusionPath(
+    localA,
+    localB,
+    boxW,
+    boxH,
+    radius,
+    threshold
+  );
 
   return (
     <div 
       ref={containerRef}
       className="relative w-full h-[150px] flex items-center justify-center select-none overflow-visible pointer-events-auto my-auto"
     >
-      {/* SVG ClipPath Definition for the dynamic unified liquid glass boundary */}
+      {/* SVG Definitions for Dynamic Unified Fluid ClipPath and Specular Rim */}
       <svg width="0" height="0" className="absolute pointer-events-none">
         <defs>
           <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
-            <path d={pathD} />
+            <path d={fusionPath} />
           </clipPath>
           <linearGradient id="specularRim" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.70)" />
-            <stop offset="30%" stopColor="rgba(34, 211, 238, 0.45)" />
-            <stop offset="70%" stopColor="rgba(56, 189, 248, 0.55)" />
-            <stop offset="100%" stopColor="rgba(255, 255, 255, 0.50)" />
+            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.75)" />
+            <stop offset="30%" stopColor="rgba(34, 211, 238, 0.50)" />
+            <stop offset="70%" stopColor="rgba(56, 189, 248, 0.60)" />
+            <stop offset="100%" stopColor="rgba(255, 255, 255, 0.55)" />
           </linearGradient>
         </defs>
       </svg>
 
-      {/* UNIFIED PHYSICAL LIQUID GLASS BODY:
-          Follows the two boxes' collective bounds with zero jump and zero lag */}
+      {/* UNIFIED LIQUID GLASS CONTAINER:
+          Positioned accurately in the center, hosting the single uninterrupted liquid glass surface */}
       <div
         className="relative flex items-center pointer-events-auto"
         style={{
-          width: `${totalW}px`,
+          width: `${stageW}px`,
           height: `${boxH}px`,
-          transform: `translate3d(${originX + totalW / 2}px, 0, 0)`,
+          transform: `translate3d(${stageMinX + stageW / 2}px, 0, 0)`,
           willChange: 'width, transform',
         }}
       >
-        {/* Layer 1: True WebGL Physical Snell Refraction masked exactly to the Young-Laplace boundary */}
+        {/* Layer 1: True WebGL Physical Snell Refraction masked exactly to the unified molten boundary */}
         <div
           className="absolute inset-0 w-full h-full pointer-events-none"
           style={{
@@ -255,30 +255,30 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
         {/* Layer 2: Continuous Glowing Specular Rim Contour tracing the entire liquid boundary */}
         <svg
           className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-10"
-          style={{ width: `${totalW}px`, height: `${boxH}px` }}
+          style={{ width: `${stageW}px`, height: `${boxH}px` }}
         >
           <path
-            d={pathD}
+            d={fusionPath}
             fill="none"
             stroke="url(#specularRim)"
-            strokeWidth={1.35}
+            strokeWidth={1.4}
             style={{
-              filter: isFused ? 'drop-shadow(0 0 8px rgba(6, 182, 212, 0.45))' : 'none',
-              transition: draggingTarget ? 'none' : 'filter 240ms ease',
+              filter: isBridged ? 'drop-shadow(0 0 10px rgba(6, 182, 212, 0.45))' : 'none',
+              transition: activeTarget ? 'none' : 'filter 240ms ease',
             }}
           />
         </svg>
 
         {/* Layer 3: Interactive Glass Cores (Glass A & Glass B) with Touch/Mouse Tracking */}
-        {/* Box A Core Handle */}
+        {/* Core A */}
         <div
-          onPointerDown={handlePointerDown('a')}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerDown={startDrag('a')}
+          onPointerMove={onDragMove}
+          onPointerUp={stopDrag}
+          onPointerCancel={stopDrag}
           className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
           style={{
-            left: `${posX.a - originX - boxW / 2}px`,
+            left: `${localA - boxW / 2}px`,
             top: 0,
             width: `${boxW}px`,
             height: `${boxH}px`,
@@ -293,15 +293,15 @@ export const DualLiquidFusionStage: React.FC<DualLiquidFusionStageProps> = ({
           </div>
         </div>
 
-        {/* Box B Core Handle */}
+        {/* Core B */}
         <div
-          onPointerDown={handlePointerDown('b')}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerDown={startDrag('b')}
+          onPointerMove={onDragMove}
+          onPointerUp={stopDrag}
+          onPointerCancel={stopDrag}
           className="absolute z-20 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
           style={{
-            left: `${posX.b - originX - boxW / 2}px`,
+            left: `${localB - boxW / 2}px`,
             top: 0,
             width: `${boxW}px`,
             height: `${boxH}px`,
